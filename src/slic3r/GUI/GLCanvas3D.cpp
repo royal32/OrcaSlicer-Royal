@@ -5466,7 +5466,16 @@ void GLCanvas3D::render_thumbnail_internal(ThumbnailData& thumbnail_data, const 
     camera.zoom_to_box(volumes_box);
     const Vec3d& target = camera.get_target();
     double distance = camera.get_distance();
-    camera.select_view("iso");
+
+    //Get the value of the thumb_cam_pos in the app's config file and translate it 
+    //to strings that Camera.cpp understands
+    auto thumb_cam_pos = wxGetApp().app_config->get("thumb_cam_pos");
+    thumb_cam_pos =   thumb_cam_pos == "Iso" ? "iso" :
+                    thumb_cam_pos == "Bottom-Front" ? "bottomfront" :
+                    thumb_cam_pos == "Top" ? "top" :
+                    thumb_cam_pos == "Plate" ? "plate"
+                    : "iso";
+    camera.select_view(thumb_cam_pos);
     camera.apply_view_matrix();
 
     camera.apply_projection(plate_build_volume);

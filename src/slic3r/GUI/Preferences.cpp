@@ -72,15 +72,32 @@ wxBoxSizer *PreferencesDialog::create_item_combobox(wxString title, wxWindow *pa
     std::vector<wxString>::iterator iter;
     for (iter = vlist.begin(); iter != vlist.end(); iter++) { combobox->Append(*iter); }
 
+    if(param == "use_inches"){
+        auto use_inch = app_config->get(param);
+        if (!use_inch.empty()) { combobox->SetSelection(atoi(use_inch.c_str())); }
+    } else if(param == "thumb_cam_pos"){
 
-    auto use_inch = app_config->get(param);
-    if (!use_inch.empty()) { combobox->SetSelection(atoi(use_inch.c_str())); }
-
+        //Get the value of the thumb_cam_pos in the app's config file and set
+        //the Thumbnail combobox to that value
+        auto thumb_cam_conf_val = app_config->get(param);
+        if (!thumb_cam_conf_val.empty()) {
+            combobox->SetSelection(
+                std::distance(vlist.begin(), std::find(vlist.begin(), vlist.end(), thumb_cam_conf_val))
+            ); 
+        }
+    }
     m_sizer_combox->Add(combobox, 0, wxALIGN_CENTER, 0);
 
     //// save config
-    combobox->GetDropDown().Bind(wxEVT_COMBOBOX, [this, param](wxCommandEvent &e) {
-        app_config->set(param, std::to_string(e.GetSelection()));
+    combobox->GetDropDown().Bind(wxEVT_COMBOBOX, [this, param, vlist](wxCommandEvent &e) {
+        if(param == "use_inches"){
+            app_config->set(param, std::to_string(e.GetSelection()));
+        } else if(param == "thumb_cam_pos"){
+
+            //When a selection is made in the combobox, set thumb_cam_pos in the 
+            //app's config file to the selection that was made
+            app_config->set(param, std::string(vlist.at(e.GetSelection()).mb_str()));
+        }
         app_config->save();
         e.Skip();
     });
@@ -825,6 +842,9 @@ wxWindow* PreferencesDialog::create_general_page()
     std::vector<wxString> Units         = {_L("Metric"), _L("Imperial")};
     auto item_currency = create_item_combobox(_L("Units"), page, _L("Units"), "use_inches", Units);
 
+    std::vector<wxString> thumb_cam_pos         = {_L("Iso"), _L("Bottom-Front"), _L("Top"), _L("Plate")};
+    auto item_thumbcampos = create_item_combobox(_L("Thumbnail"), page, _L("Thumbnail"), "thumb_cam_pos", thumb_cam_pos);
+
     auto item_hints = create_item_checkbox(_L("Show \"Tip of the day\" notification after start"), page, _L("If enabled, useful hints are displayed at startup."), 50, "show_hints");
     auto item_gcode_window = create_item_checkbox(_L("Show g-code window"), page, _L("If enabled, g-code window will be displayed."), 50, "show_gcode_window");
 
@@ -864,6 +884,7 @@ wxWindow* PreferencesDialog::create_general_page()
     sizer_page->Add(item_language, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_region, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_currency, 0, wxTOP, FromDIP(3));
+    sizer_page->Add(item_thumbcampos, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_hints, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_gcode_window, 0, wxTOP, FromDIP(3));
     sizer_page->Add(title_sync_settings, 0, wxTOP | wxEXPAND, FromDIP(20));

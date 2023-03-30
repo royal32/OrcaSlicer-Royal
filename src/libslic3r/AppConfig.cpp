@@ -157,6 +157,9 @@ void AppConfig::set_defaults()
 #endif // _WIN32
     }
 
+    if (get("thumb_cam_pos").empty())
+            set("thumb_cam_pos", "Iso");
+
     if (get("use_perspective_camera").empty())
         set_bool("use_perspective_camera", true);
 
