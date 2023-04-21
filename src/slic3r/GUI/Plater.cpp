@@ -6862,8 +6862,8 @@ bool Plater::priv::has_assemble_view() const
 #if ENABLE_ENHANCED_PRINT_VOLUME_FIT
 bool Plater::priv::can_scale_to_print_volume() const
 {
-    const BuildVolume::Type type = this->bed.build_volume().type();
-    return !view3D->get_canvas3d()->get_selection().is_empty() && (type == BuildVolume::Type::Rectangle || type == BuildVolume::Type::Circle);
+    const BuildVolume_Type type = this->bed.build_volume().type();
+    return !view3D->get_canvas3d()->get_selection().is_empty() && (type == BuildVolume_Type::Rectangle || type == BuildVolume_Type::Circle);
 }
 #endif // ENABLE_ENHANCED_PRINT_VOLUME_FIT
 
@@ -6981,11 +6981,13 @@ void Plater::priv::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_ar
 
     float prev_height_lid, prev_height_rod;
     partplate_list.get_height_limits(prev_height_lid, prev_height_rod);
+    auto prev_logo = partplate_list.get_logo_texture_filename();
     double height_to_lid = config->opt_float("extruder_clearance_height_to_lid");
     double height_to_rod = config->opt_float("extruder_clearance_height_to_rod");
+    auto custom_bed_texture = config->opt_string("bed_custom_texture");
 
     Pointfs prev_exclude_areas = partplate_list.get_exclude_area();
-    new_shape |= (height_to_lid != prev_height_lid) || (height_to_rod != prev_height_rod) || (prev_exclude_areas != exclude_areas);
+    new_shape |= (height_to_lid != prev_height_lid) || (height_to_rod != prev_height_rod) || (prev_exclude_areas != exclude_areas) || (prev_logo != custom_bed_texture);
     if (new_shape) {
         if (view3D) view3D->bed_shape_changed();
         if (preview) preview->bed_shape_changed();
@@ -8369,6 +8371,7 @@ void Plater::calib_VFA(const Calib_Params& params)
 
     p->background_process.fff_print()->set_calib_params(params);
 }
+BuildVolume_Type Plater::get_build_volume_type() const { return p->bed.get_build_volume_type(); }
 void Plater::import_sl1_archive()
 {
     if (!p->m_ui_jobs.is_any_running())
@@ -10580,6 +10583,7 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
         }
         //BBS: add bed_exclude_area
         else if (opt_key == "printable_area" || opt_key == "bed_exclude_area"
+            || opt_key == "bed_custom_texture" || opt_key == "bed_custom_model"
             || opt_key == "extruder_clearance_height_to_lid"
             || opt_key == "extruder_clearance_height_to_rod") {
             bed_shape_changed = true;

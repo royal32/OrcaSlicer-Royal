@@ -346,8 +346,8 @@ public:
     const BoundingBox get_bounding_box_crd();
     BoundingBoxf3 get_build_volume()
     {
-        Vec3d up_point(m_origin.x() + m_width, m_origin.y() + m_depth, m_origin.z() + m_height);
-        Vec3d low_point(m_origin.x(), m_origin.y(), m_origin.z());
+        Vec3d up_point = m_bounding_box.max + Vec3d(0, 0, m_origin.z() + m_height);
+        Vec3d low_point = m_bounding_box.min + Vec3d(0, 0, m_origin.z());
         BoundingBoxf3 plate_box(low_point, up_point);
         return plate_box;
     }
@@ -636,6 +636,11 @@ public:
     void set_height_limits_mode(PartPlate::HeightLimitMode mode)
     {
         m_height_limit_mode = mode;
+    }
+
+    // SoftFever
+    const std::string& get_logo_texture_filename() const { 
+        return m_logo_texture_filename;
     }
 
     int get_curr_plate_index() const { return m_current_plate; }

@@ -437,7 +437,8 @@ void PartPlate::calc_vertex_for_number(int index, bool one_number, GeometryBuffe
 	poly.contour.append({ scale_(p(0) + PARTPLATE_ICON_GAP + PARTPLATE_ICON_SIZE - offset_x), scale_(p(1) - index * (PARTPLATE_ICON_SIZE + PARTPLATE_ICON_GAP)- PARTPLATE_ICON_GAP - PARTPLATE_TEXT_OFFSET_Y)});
 	poly.contour.append({ scale_(p(0) + PARTPLATE_ICON_GAP + offset_x), scale_(p(1) - index * (PARTPLATE_ICON_SIZE + PARTPLATE_ICON_GAP)- PARTPLATE_ICON_GAP - PARTPLATE_TEXT_OFFSET_Y) });
 #else //in the bottom
-	Vec2d& p = m_shape[1];
+	auto bed_ext = get_extents(m_shape);
+    Vec2d p = bed_ext[1];
 	float offset_x = one_number?PARTPLATE_TEXT_OFFSET_X1: PARTPLATE_TEXT_OFFSET_X2;
 
 	poly.contour.append({ scale_(p(0) + PARTPLATE_ICON_GAP_LEFT + offset_x), scale_(p(1) + PARTPLATE_TEXT_OFFSET_Y) });
@@ -453,7 +454,11 @@ void PartPlate::calc_vertex_for_number(int index, bool one_number, GeometryBuffe
 void PartPlate::calc_vertex_for_icons(int index, GeometryBuffer &buffer)
 {
 	ExPolygon poly;
-	Vec2d& p = m_shape[2];
+	auto bed_ext = get_extents(m_shape);
+    Vec2d p = bed_ext[2];
+    if (m_plater->get_build_volume_type() == BuildVolume_Type::Circle)
+        p[1] -= std::max(
+            0.0, (bed_ext.size()(1) - 5 * PARTPLATE_ICON_SIZE - 4 * PARTPLATE_ICON_GAP_Y - PARTPLATE_ICON_GAP_TOP) / 2);
 
 	poly.contour.append({ scale_(p(0) + PARTPLATE_ICON_GAP_LEFT), scale_(p(1) - index * (PARTPLATE_ICON_SIZE + PARTPLATE_ICON_GAP_Y) - PARTPLATE_ICON_GAP_TOP - PARTPLATE_ICON_SIZE) });
 	poly.contour.append({ scale_(p(0) + PARTPLATE_ICON_GAP_LEFT + PARTPLATE_ICON_SIZE), scale_(p(1) - index * (PARTPLATE_ICON_SIZE + PARTPLATE_ICON_GAP_Y)- PARTPLATE_ICON_GAP_TOP - PARTPLATE_ICON_SIZE) });
@@ -468,7 +473,8 @@ void PartPlate::calc_vertex_for_icons(int index, GeometryBuffer &buffer)
 void PartPlate::calc_vertex_for_icons_background(int icon_count, GeometryBuffer &buffer)
 {
 	ExPolygon poly;
-	Vec2d& p = m_shape[2];
+	auto bed_ext = get_extents(m_shape);
+    Vec2d p = bed_ext[2];
 
 	poly.contour.append({ scale_(p(0) + PARTPLATE_ICON_GAP_LEFT), scale_(p(1) - icon_count * (PARTPLATE_ICON_SIZE + PARTPLATE_ICON_GAP_Y) - PARTPLATE_ICON_GAP_TOP) });
 	poly.contour.append({ scale_(p(0) + PARTPLATE_ICON_GAP_LEFT + PARTPLATE_ICON_SIZE), scale_(p(1) - icon_count * (PARTPLATE_ICON_SIZE + PARTPLATE_ICON_GAP_Y)- PARTPLATE_ICON_GAP_TOP) });
@@ -1561,11 +1567,8 @@ void PartPlate::generate_plate_name_texture()
 	m_name_texture.reset();
 	auto text = m_name.empty()? _L("Untitled") : m_name;
 	wxCoord w, h;
-#ifdef WIN32
-	auto* font = &Label::Head_48;
-#else
+
 	auto* font = &Label::Head_32;
-#endif
 
 	wxColour foreground(0xf2, 0x75, 0x4e, 0xff);
     if (!m_name_texture.generate_from_text_string(text.ToStdString(), *font, *wxBLACK, foreground))
@@ -1576,7 +1579,7 @@ void PartPlate::generate_plate_name_texture()
 	float offset_x = 1;
     w = int(factor * (m_name_texture.get_width() * 16) / m_name_texture.get_height());
     h = int(factor * 16);
-    Vec2d p = m_shape[3] + Vec2d(0, h*0.6);
+    Vec2d p = bed_ext[3] + Vec2d(0, 1 + h * m_name_texture.m_original_height / m_name_texture.get_height());
 	poly.contour.append({ scale_(p(0) + PARTPLATE_ICON_GAP_LEFT + offset_x), scale_(p(1) - h + PARTPLATE_TEXT_OFFSET_Y) });
 	poly.contour.append({ scale_(p(0) + PARTPLATE_ICON_GAP_LEFT + w - offset_x), scale_(p(1) - h + PARTPLATE_TEXT_OFFSET_Y) });
 	poly.contour.append({ scale_(p(0) + PARTPLATE_ICON_GAP_LEFT + w - offset_x), scale_(p(1) - PARTPLATE_TEXT_OFFSET_Y)});
@@ -1724,15 +1727,17 @@ bool PartPlate::check_outside(int obj_id, int instance_id, BoundingBoxf3* boundi
 	ModelInstance* instance = object->instances[instance_id];
 
 	BoundingBoxf3 instance_box = bounding_box? *bounding_box: object->instance_convex_hull_bounding_box(instance_id);
-	Polygon hull = instance->convex_hull_2d();
-	Vec3d up_point(m_origin.x() + m_width + Slic3r::BuildVolume::SceneEpsilon, m_origin.y() + m_depth + Slic3r::BuildVolume::SceneEpsilon, m_origin.z() + m_height + Slic3r::BuildVolume::SceneEpsilon);
-	Vec3d low_point(m_origin.x() - Slic3r::BuildVolume::SceneEpsilon, m_origin.y() - Slic3r::BuildVolume::SceneEpsilon, m_origin.z() - Slic3r::BuildVolume::SceneEpsilon);
+    Vec3d up_point = m_bounding_box.max + Vec3d(Slic3r::BuildVolume::SceneEpsilon, Slic3r::BuildVolume::SceneEpsilon,
+                                                m_origin.z() + m_height + Slic3r::BuildVolume::SceneEpsilon);
+    Vec3d low_point = m_bounding_box.min + Vec3d(-Slic3r::BuildVolume::SceneEpsilon, -Slic3r::BuildVolume::SceneEpsilon,
+                                                 m_origin.z() - Slic3r::BuildVolume::SceneEpsilon);
 	BoundingBoxf3 plate_box(low_point, up_point);
 
 	if (plate_box.contains(instance_box))
 	{
 		if (m_exclude_bounding_box.size() > 0)
 		{
+			Polygon hull = instance->convex_hull_2d();
 			int index;
 			for (index = 0; index < m_exclude_bounding_box.size(); index ++)
 			{
@@ -1769,8 +1774,12 @@ bool PartPlate::intersect_instance(int obj_id, int instance_id, BoundingBoxf3* b
 		ModelObject* object = m_model->objects[obj_id];
 		ModelInstance* instance = object->instances[instance_id];
 		BoundingBoxf3 instance_box = bounding_box? *bounding_box: object->instance_convex_hull_bounding_box(instance_id);
-		Vec3d up_point(m_origin.x() + m_width, m_origin.y() + m_depth, m_origin.z() + m_height);
-		Vec3d low_point(m_origin.x(), m_origin.y(), m_origin.z() - 5.0f);
+        Vec3d up_point =
+            m_bounding_box.max + Vec3d(Slic3r::BuildVolume::SceneEpsilon, Slic3r::BuildVolume::SceneEpsilon,
+                                       m_origin.z() + m_height + Slic3r::BuildVolume::SceneEpsilon);
+        Vec3d low_point =
+            m_bounding_box.min + Vec3d(-Slic3r::BuildVolume::SceneEpsilon, -Slic3r::BuildVolume::SceneEpsilon,
+                                       m_origin.z() - Slic3r::BuildVolume::SceneEpsilon);
 		BoundingBoxf3 plate_box(low_point, up_point);
 
 		result = plate_box.intersects(instance_box);
@@ -4337,15 +4346,18 @@ int PartPlateList::rebuild_plates_after_deserialize(std::vector<bool>& previous_
 	int ret = 0;
 
 	BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(": plates count %1%") % m_plate_list.size();
+	// SoftFever: assign plater info first
+    for (auto partplate : m_plate_list) {
+        partplate->m_plater = this->m_plater;
+        partplate->m_partplate_list = this;
+        partplate->m_model = this->m_model;
+        partplate->printer_technology = this->printer_technology;
+    }
 	update_plate_cols();
 	set_shapes(m_shape, m_exclude_areas, m_logo_texture_filename, m_height_to_lid, m_height_to_rod);
 	for (unsigned int i = 0; i < (unsigned int)m_plate_list.size(); ++i)
 	{
 		bool need_reset_print = false;
-		m_plate_list[i]->m_plater = this->m_plater;
-		m_plate_list[i]->m_partplate_list = this;
-		m_plate_list[i]->m_model = this->m_model;
-		m_plate_list[i]->printer_technology = this->printer_technology;
 		//check the previous sliced result
 		if (m_plate_list[i]->m_slice_result_valid) {
 			if ((i >= previous_sliced_result.size()) || !previous_sliced_result[i])
